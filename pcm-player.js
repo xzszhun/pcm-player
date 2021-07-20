@@ -87,28 +87,36 @@ PCMPlayer.prototype.destroy = function() {
 
 PCMPlayer.prototype.flush = function() {
     if (!this.samples.length) return;
+    const sampleRate = this.option.sampleRate;
+    const samples = this.samples;
+    // 22050 这个值是因为低于这个频率，ios会导致无法播放，目前未确定具体版本
+    var ratio = sampleRate < 22050 ? Math.ceil(32000 / sampleRate) : 1
     var bufferSource = this.audioCtx.createBufferSource(),
-        length = this.samples.length / this.option.channels,
-        audioBuffer = this.audioCtx.createBuffer(this.option.channels, length, this.option.sampleRate),
+        length = samples.length / this.option.channels,
+        audioBuffer = this.audioCtx.createBuffer(this.option.channels, length * ratio, sampleRate * ratio),
         audioData,
         channel,
-        offset,
+        // offset,
         i,
         decrement;
 
     for (channel = 0; channel < this.option.channels; channel++) {
         audioData = audioBuffer.getChannelData(channel);
-        offset = channel;
-        decrement = 50;
+        // offset = channel;
+        decrement = 25;
         for (i = 0; i < length; i++) {
-            audioData[i] = this.samples[offset];
+            const sampleIndex = channel + i * channels;
+            for(var j = 0; j < ratio; j++) {
+                audioData[ i * ratio + j ] = samples[sampleIndex] + ((samples[sampleIndex + ratio - 1] || 0) - samples[sampleIndex]) / ratio * j;
+            }
+            // audioData[i] = samples[offset];
             /* fadein */
-            if (i < 50) {
-                audioData[i] =  (audioData[i] * i) / 50;
+            if (i < decrement) {
+                audioData[i] =  (audioData[i] * i) / decrement;
             }
             /* fadeout*/
-            if (i >= (length - 51)) {
-                audioData[i] =  (audioData[i] * decrement--) / 50;
+            if (i >= (length - decrement - 1)) {
+                audioData[i] =  (audioData[i] * decrement--) / decrement;
             }
             offset += this.option.channels;
         }
